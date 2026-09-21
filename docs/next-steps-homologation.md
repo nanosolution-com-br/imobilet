@@ -15,6 +15,8 @@ git pull origin main
 3. Validar o projeto:
 
 ```bash
+npm run validate:receivables
+npm run validate:supabase-config
 npm run validate:bb-boleto
 npm run lint
 npm run build
@@ -35,10 +37,9 @@ Antes de aplicar qualquer SQL em producao:
 5. Confirmar que as policies usam `TO authenticated` com predicados de ownership, e nao `service_role` no front-end.
 6. Confirmar que `payments` so permite inserir pagamentos em parcelas pertencentes a contratos do usuario autenticado.
 7. Confirmar que funcoes publicas tem `EXECUTE` revogado de `public`/`anon` e liberado apenas quando necessario.
-8. Confirmar que as novas tabelas estao expostas para a Data API apenas com `GRANT` adequado para `authenticated`.
+8. Confirmar que as novas tabelas e as RPCs necessarias estao expostas para a Data API apenas com `GRANT` adequado para `authenticated`.
 9. Testar com usuario comum autenticado:
-   - criar contrato;
-   - gerar parcelas;
+   - criar contrato e parcelas pela RPC transacional `create_sales_contract_with_installments`;
    - listar contas a receber;
    - registrar pagamento parcial;
    - registrar quitacao;

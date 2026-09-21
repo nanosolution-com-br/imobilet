@@ -30,6 +30,8 @@ export const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL',
 });
 
+export const MAX_INSTALLMENTS_COUNT = 600;
+
 export const formatCurrency = (value) => currencyFormatter.format(Number(value) || 0);
 
 export const formatDate = (value) => {
@@ -59,8 +61,15 @@ export const generateInstallmentsSchedule = ({
 }) => {
   const count = Number(installmentsCount) || 0;
   const amount = Number(installmentAmount) || 0;
+  const firstDueDate = new Date(`${firstInstallmentDate}T12:00:00`);
 
-  if (count <= 0 || amount <= 0 || !firstInstallmentDate) {
+  if (!Number.isInteger(count)
+    || count <= 0
+    || count > MAX_INSTALLMENTS_COUNT
+    || !Number.isFinite(amount)
+    || amount <= 0
+    || !firstInstallmentDate
+    || Number.isNaN(firstDueDate.getTime())) {
     return [];
   }
 
@@ -76,16 +85,24 @@ export const generateInstallmentsSchedule = ({
   }));
 };
 
-export const calculateInstallmentStatus = ({ balance, paidAmount = 0, dueDate, currentStatus }) => {
+export const calculateInstallmentStatus = ({
+  balance,
+  paidAmount = 0,
+  dueDate,
+  currentStatus,
+  referenceDate = getTodayISO(),
+}) => {
   if (['cancelled', 'renegotiated'].includes(currentStatus)) return currentStatus;
   if (Number(balance) <= 0) return 'paid';
-  if (Number(paidAmount) > 0) return 'partial';
 
-  const today = new Date(`${getTodayISO()}T12:00:00`);
+  const today = new Date(`${referenceDate}T12:00:00`);
   const due = new Date(`${dueDate}T12:00:00`);
 
-  if (Number.isNaN(due.getTime())) return 'open';
+  if (Number.isNaN(today.getTime()) || Number.isNaN(due.getTime())) {
+    return Number(paidAmount) > 0 ? 'partial' : 'open';
+  }
   if (due < today) return 'overdue';
+  if (Number(paidAmount) > 0) return 'partial';
   return 'open';
 };
 
@@ -94,14 +111,12 @@ export const deriveInstallmentStatus = (installment, nextPaidAmount = installmen
   const paid = Number(nextPaidAmount) || 0;
   const balance = Math.max(adjusted - paid, 0);
 
-  if (['cancelled', 'renegotiated'].includes(installment?.status)) return installment.status;
-  if (balance <= 0) return 'paid';
-  if (paid > 0) return 'partial';
-
-  const today = new Date(`${getTodayISO()}T12:00:00`);
-  const due = new Date(`${installment?.due_date}T12:00:00`);
-
-  return due < today ? 'overdue' : 'open';
+  return calculateInstallmentStatus({
+    balance,
+    paidAmount: paid,
+    dueDate: installment?.due_date,
+    currentStatus: installment?.status,
+  });
 };
 
 export const getInstallmentBadgeClass = (status) => {
@@ -120,10 +135,12 @@ export const getInstallmentBadgeClass = (status) => {
 export const isMissingReceivablesSchema = (error) => {
   const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
   return error?.code === '42P01'
+    || error?.code === 'PGRST202'
     || error?.code === 'PGRST205'
     || message.includes('sales_contracts')
     || message.includes('installments')
     || message.includes('payments')
+    || message.includes('create_sales_contract_with_installments')
     || message.includes('does not exist')
     || message.includes('could not find');
 };

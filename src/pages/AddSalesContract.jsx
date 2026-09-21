@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/contexts/SupabaseAuthContext';
 import {
   formatCurrency,
   generateInstallmentsSchedule,
@@ -23,7 +22,6 @@ import {
 const AddSalesContract = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [schemaMissing, setSchemaMissing] = useState(false);
@@ -121,26 +119,19 @@ const AddSalesContract = () => {
       setLoading(true);
       setSchemaMissing(false);
 
-      const contractPayload = {
-        property_id: formData.property_id,
-        buyer_id: formData.buyer_id,
-        contract_number: formData.contract_number.trim(),
-        sale_date: formData.sale_date,
-        total_amount: Number(formData.total_amount || 0),
-        down_payment_amount: Number(formData.down_payment_amount || 0),
-        installments_count: Number(formData.installments_count || 0),
-        installment_amount: Number(formData.installment_amount || 0),
-        first_installment_date: formData.first_installment_date,
-        status: 'active',
-        notes: formData.notes.trim() || null,
-        created_by: user?.id || null,
-      };
-
-      const { data: contract, error: contractError } = await supabase
-        .from('sales_contracts')
-        .insert([contractPayload])
-        .select('id')
-        .single();
+      const { data: contractId, error: contractError } = await supabase
+        .rpc('create_sales_contract_with_installments', {
+          property_uuid: formData.property_id,
+          buyer_uuid: formData.buyer_id,
+          contract_number_value: formData.contract_number.trim(),
+          sale_date_value: formData.sale_date,
+          total_amount_value: Number(formData.total_amount || 0),
+          down_payment_amount_value: Number(formData.down_payment_amount || 0),
+          installments_count_value: Number(formData.installments_count || 0),
+          installment_amount_value: Number(formData.installment_amount || 0),
+          first_installment_date_value: formData.first_installment_date,
+          notes_value: formData.notes.trim() || null,
+        });
 
       if (contractError) {
         if (isMissingReceivablesSchema(contractError)) {
@@ -150,36 +141,12 @@ const AddSalesContract = () => {
         throw contractError;
       }
 
-      const installmentsPayload = previewInstallments.map((installment) => ({
-        ...installment,
-        contract_id: contract.id,
-      }));
-
-      const { error: installmentsError } = await supabase
-        .from('installments')
-        .insert(installmentsPayload);
-
-      if (installmentsError) throw installmentsError;
-
-      await supabase.from('financial_audit_logs').insert([{
-        entity_type: 'sales_contract',
-        entity_id: contract.id,
-        action: 'contract_created',
-        description: 'Contrato de venda criado com geração automática de parcelas.',
-        metadata: {
-          installments_count: installmentsPayload.length,
-          property_id: formData.property_id,
-          buyer_id: formData.buyer_id,
-        },
-        created_by: user?.id || null,
-      }]);
-
       toast({
         title: 'Contrato criado',
         description: 'As parcelas foram geradas automaticamente.',
       });
 
-      navigate(`/financeiro/a-receber/contratos/${contract.id}`);
+      navigate(`/financeiro/a-receber/contratos/${contractId}`);
     } catch (error) {
       toast({
         variant: 'destructive',

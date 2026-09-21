@@ -134,6 +134,7 @@ select
 from (
   values
     ('set_updated_at', ''),
+    ('create_sales_contract_with_installments', 'property_uuid uuid, buyer_uuid uuid, contract_number_value text, sale_date_value date, total_amount_value numeric, down_payment_amount_value numeric, installments_count_value integer, installment_amount_value numeric, first_installment_date_value date, notes_value text'),
     ('generate_installments_for_contract', 'contract_uuid uuid'),
     ('register_manual_installment_payment', 'installment_uuid uuid, payment_date_value date, paid_amount_value numeric, payment_method_value text, receipt_path_value text, notes_value text'),
     ('refresh_overdue_installments', '')
@@ -155,6 +156,7 @@ from information_schema.routine_privileges
 where routine_schema = 'public'
   and routine_name in (
     'set_updated_at',
+    'create_sales_contract_with_installments',
     'generate_installments_for_contract',
     'register_manual_installment_payment',
     'refresh_overdue_installments'

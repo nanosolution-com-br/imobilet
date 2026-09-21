@@ -21,6 +21,7 @@ Nunca coloque uma `secret key` ou chave `service_role` nesse arquivo. O `.env.lo
 No PowerShell, dentro da pasta do projeto:
 
 ```powershell
+npm.cmd run validate:receivables
 npm.cmd run validate:supabase-config
 npm.cmd run dev
 ```

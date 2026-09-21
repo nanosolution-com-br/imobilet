@@ -275,7 +275,7 @@ const SalesContractDetails = () => {
                             <Button
                               size="sm"
                               className="bg-emerald-600 hover:bg-emerald-500"
-                              disabled={['paid', 'cancelled'].includes(item.status)}
+                              disabled={['paid', 'cancelled', 'renegotiated'].includes(item.effective_status)}
                               onClick={() => openPaymentDialog(item)}
                             >
                               Registrar pagamento
