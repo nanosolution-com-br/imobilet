@@ -8,6 +8,7 @@
     "build": "node tools/generate-llms.js || true && vite build",
     "preview": "vite preview --host :: --port 3000",
     "lint": "eslint . --quiet",
+    "validate:supabase-config": "node tools/validate-supabase-configuration.js",
     "validate:bb-boleto": "node tools/validate-banco-brasil-boleto.js"
   },
   "dependencies": {

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { supabase } from '@/lib/customSupabaseClient';
+import { supabase, supabaseConfiguration } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 
 const AuthContext = createContext(undefined);
@@ -8,6 +8,10 @@ export const translateAuthError = (error) => {
   if (!error) return 'Ocorreu um erro desconhecido.';
   const code = error.code?.toLowerCase();
   const msg = error.message?.toLowerCase();
+
+  if (code?.startsWith('supabase_config_')) {
+    return error.message;
+  }
 
   if (code === 'invalid_credentials' || msg?.includes('invalid login credentials')) {
     return 'Email ou senha incorretos.';
@@ -25,7 +29,7 @@ export const translateAuthError = (error) => {
     return 'Usuário não encontrado. Cadastre-se primeiro.';
   }
   if (code === 'network_error' || code === 'internal_error' || msg?.includes('fetch') || msg?.includes('network')) {
-    return 'Erro de conexão. Verifique sua internet e tente novamente.';
+    return 'Não foi possível conectar ao Supabase. Verifique o Project URL, a chave pública e sua conexão com a internet.';
   }
   
   return 'Ocorreu um erro inesperado. Tente novamente mais tarde.';
@@ -91,6 +95,12 @@ export const AuthProvider = ({ children }) => {
   }, [clearSession]);
 
   useEffect(() => {
+    if (!supabaseConfiguration.isValid) {
+      setError(supabaseConfiguration.error.message);
+      setIsLoading(false);
+      return undefined;
+    }
+
     let mounted = true;
 
     const initializeAuth = async () => {
@@ -142,6 +152,11 @@ export const AuthProvider = ({ children }) => {
   const signup = useCallback(async (email, password, fullName) => {
     logInfo('Signup attempt started');
     setError(null);
+
+    if (!supabaseConfiguration.isValid) {
+      setError(supabaseConfiguration.error.message);
+      return { data: null, error: supabaseConfiguration.error };
+    }
     
     try {
       logInfo('Proceeding with signUp');
@@ -177,6 +192,12 @@ export const AuthProvider = ({ children }) => {
   const login = useCallback(async (email, password) => {
     logInfo('Signin attempt started');
     setError(null);
+
+    if (!supabaseConfiguration.isValid) {
+      setError(supabaseConfiguration.error.message);
+      return { data: null, error: supabaseConfiguration.error };
+    }
+
     try {
       const { data, error: err } = await supabase.auth.signInWithPassword({
         email,
@@ -194,9 +215,12 @@ export const AuthProvider = ({ children }) => {
       return { data, error: null };
     } catch (err) {
       logError(`Unexpected exception caught in login method`, err);
-      const internalErr = 'Erro interno na requisição.';
-      setError(internalErr);
-      return { data: null, error: { code: 'internal_error', message: internalErr } };
+      const networkError = {
+        code: 'network_error',
+        message: err?.message || 'Falha de conexão com o Supabase.',
+      };
+      setError(translateAuthError(networkError));
+      return { data: null, error: networkError };
     }
   }, []);
 
