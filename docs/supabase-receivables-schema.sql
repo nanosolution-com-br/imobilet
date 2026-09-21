@@ -315,8 +315,11 @@ as $$
 declare
   installment_row public.installments%rowtype;
   contract_uuid uuid;
+  caller_id uuid := (select auth.uid());
+  expected_receipt_prefix text;
+  receipt_file_name text;
 begin
-  if (select auth.uid()) is null then
+  if caller_id is null then
     raise exception 'Usuário autenticado é obrigatório';
   end if;
 
@@ -350,6 +353,17 @@ begin
   end if;
 
   contract_uuid := installment_row.contract_id;
+  expected_receipt_prefix := caller_id::text || '/' || contract_uuid::text || '/' || installment_uuid::text || '/';
+
+  if nullif(trim(receipt_path_value), '') is not null then
+    receipt_file_name := substring(receipt_path_value from length(expected_receipt_prefix) + 1);
+    if receipt_path_value not like (expected_receipt_prefix || '%')
+      or receipt_path_value like '%..%'
+      or receipt_file_name !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(pdf|jpg|png|webp)$' then
+      raise exception 'Caminho de comprovante inválido';
+    end if;
+  end if;
+
   next_paid_amount := installment_row.paid_amount + paid_amount_value;
   next_balance := greatest(installment_row.adjusted_amount - next_paid_amount, 0);
 
@@ -381,7 +395,7 @@ begin
     payment_method_value,
     nullif(trim(receipt_path_value), ''),
     nullif(trim(notes_value), ''),
-    (select auth.uid())
+    caller_id
   )
   returning id into payment_id;
 
@@ -414,7 +428,7 @@ begin
       'payment_method', payment_method_value,
       'new_status', next_status
     ),
-    (select auth.uid())
+    caller_id
   );
 
   return next;
@@ -553,3 +567,5 @@ create policy "Authenticated users can insert audit logs"
 -- Estrutura reservada para integração futura, sem emissão real nesta etapa:
 -- payments.payment_method = 'bank_slip' pode representar boleto manual.
 -- Adicionar futuramente tabelas como bank_slip_charges / pix_charges para Banco do Brasil.
+-- O bucket privado e as policies dos comprovantes estão em:
+-- docs/supabase-payment-receipts-storage.sql

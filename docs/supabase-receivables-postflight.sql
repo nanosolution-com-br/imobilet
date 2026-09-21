@@ -185,3 +185,30 @@ where tc.constraint_type = 'FOREIGN KEY'
   and tc.table_schema = 'public'
   and tc.table_name in ('sales_contracts', 'installments', 'payments')
 order by tc.table_name, kcu.column_name;
+
+-- 9. Bucket de comprovantes deve existir e permanecer privado.
+select
+  id,
+  case when public then 'public_unexpected' else 'ok' end as privacy_status,
+  file_size_limit,
+  allowed_mime_types
+from storage.buckets
+where id = 'payment-receipts';
+
+-- 10. Policies minimas do bucket privado.
+select
+  expected.policyname,
+  expected.cmd,
+  case when p.policyname is null then 'missing' else 'ok' end as status
+from (
+  values
+    ('Owners can upload payment receipts', 'INSERT'),
+    ('Owners can read payment receipts', 'SELECT'),
+    ('Owners can delete payment receipts', 'DELETE')
+) as expected(policyname, cmd)
+left join pg_policies p
+  on p.schemaname = 'storage'
+  and p.tablename = 'objects'
+  and p.policyname = expected.policyname
+  and p.cmd = expected.cmd
+order by expected.policyname;

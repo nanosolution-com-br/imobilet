@@ -27,6 +27,7 @@ supabase/.env.*
 !docs/supabase-receivables-schema.sql
 !docs/supabase-receivables-preflight.sql
 !docs/supabase-receivables-postflight.sql
+!docs/supabase-payment-receipts-storage.sql
 *.dump
 *.backup
 *.bak

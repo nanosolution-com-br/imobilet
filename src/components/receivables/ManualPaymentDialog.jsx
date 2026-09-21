@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2, Paperclip } from 'lucide-react';
+import { FileCheck2, Loader2, Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -14,6 +14,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
+import {
+  buildPaymentReceiptPath,
+  PAYMENT_RECEIPT_ACCEPT,
+  PAYMENT_RECEIPTS_BUCKET,
+  validatePaymentReceipt,
+} from '@/lib/paymentReceipts';
 import {
   formatCurrency,
   getTodayISO,
@@ -24,26 +31,27 @@ const paymentMethods = Object.entries(paymentMethodLabels);
 
 const ManualPaymentDialog = ({ open, onOpenChange, installment, contractId, onPaymentSaved }) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [receiptFile, setReceiptFile] = useState(null);
   const [formData, setFormData] = useState({
     payment_date: getTodayISO(),
     paid_amount: '',
     payment_method: 'pix',
-    receipt_path: '',
     notes: '',
   });
 
   useEffect(() => {
-    if (installment) {
+    if (open && installment) {
       setFormData({
         payment_date: getTodayISO(),
         paid_amount: String(Number(installment.balance || installment.adjusted_amount || 0).toFixed(2)),
         payment_method: 'pix',
-        receipt_path: '',
         notes: '',
       });
+      setReceiptFile(null);
     }
-  }, [installment]);
+  }, [installment, open]);
 
   const projected = useMemo(() => {
     const currentPaid = Number(installment?.paid_amount || 0);
@@ -74,25 +82,52 @@ const ManualPaymentDialog = ({ open, onOpenChange, installment, contractId, onPa
       return;
     }
 
-    const receiptPath = formData.receipt_path.trim();
-    if (/^https?:\/\//i.test(receiptPath)) {
-      toast({ variant: 'destructive', title: 'Não informe URL pública para comprovantes.' });
+    const receiptValidationError = validatePaymentReceipt(receiptFile);
+    if (receiptValidationError) {
+      toast({ variant: 'destructive', title: receiptValidationError });
+      return;
+    }
+    if (receiptFile && !user?.id) {
+      toast({ variant: 'destructive', title: 'Sua sessão expirou. Entre novamente antes de anexar o comprovante.' });
       return;
     }
 
+    let uploadedReceiptPath = null;
+    let paymentRecorded = false;
+
     try {
       setSaving(true);
+
+      if (receiptFile) {
+        uploadedReceiptPath = buildPaymentReceiptPath({
+          userId: user.id,
+          contractId,
+          installmentId: installment.id,
+          file: receiptFile,
+        });
+
+        const { error: uploadError } = await supabase.storage
+          .from(PAYMENT_RECEIPTS_BUCKET)
+          .upload(uploadedReceiptPath, receiptFile, {
+            cacheControl: '3600',
+            contentType: receiptFile.type,
+            upsert: false,
+          });
+
+        if (uploadError) throw uploadError;
+      }
 
       const { error: paymentError } = await supabase.rpc('register_manual_installment_payment', {
         installment_uuid: installment.id,
         payment_date_value: formData.payment_date,
         paid_amount_value: paidAmount,
         payment_method_value: formData.payment_method,
-        receipt_path_value: receiptPath || null,
+        receipt_path_value: uploadedReceiptPath,
         notes_value: formData.notes.trim() || null,
       });
 
       if (paymentError) throw paymentError;
+      paymentRecorded = true;
 
       toast({
         title: 'Pagamento registrado',
@@ -102,6 +137,9 @@ const ManualPaymentDialog = ({ open, onOpenChange, installment, contractId, onPa
       onPaymentSaved?.();
       onOpenChange(false);
     } catch (error) {
+      if (uploadedReceiptPath && !paymentRecorded) {
+        await supabase.storage.from(PAYMENT_RECEIPTS_BUCKET).remove([uploadedReceiptPath]);
+      }
       toast({
         variant: 'destructive',
         title: 'Erro ao registrar pagamento',
@@ -168,19 +206,28 @@ const ManualPaymentDialog = ({ open, onOpenChange, installment, contractId, onPa
 
           <div>
             <Label htmlFor="receipt_path">Comprovante/anexo opcional</Label>
-            <div className="relative mt-2">
-              <Paperclip className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                id="receipt_path"
-                value={formData.receipt_path}
-                onChange={(event) => setFormData((prev) => ({ ...prev, receipt_path: event.target.value }))}
-                disabled={saving}
-                placeholder="Caminho interno ou referência do comprovante"
-                className="pl-9"
-              />
-            </div>
+            <Input
+              key={`${installment?.id || 'none'}-${open ? 'open' : 'closed'}`}
+              id="receipt_path"
+              type="file"
+              accept={PAYMENT_RECEIPT_ACCEPT}
+              onChange={(event) => setReceiptFile(event.target.files?.[0] || null)}
+              disabled={saving}
+              className="mt-2 file:mr-3 file:border-0 file:bg-transparent file:text-sm file:font-semibold"
+            />
+            {receiptFile ? (
+              <div className="mt-2 flex items-center gap-2 text-sm text-emerald-700">
+                <FileCheck2 className="h-4 w-4" />
+                <span className="truncate">{receiptFile.name}</span>
+              </div>
+            ) : (
+              <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
+                <Paperclip className="h-4 w-4" />
+                <span>Nenhum comprovante selecionado</span>
+              </div>
+            )}
             <p className="text-xs text-slate-500 mt-1">
-              Não use URL pública. O upload seguro deve ser ligado depois a um bucket privado do Supabase Storage.
+              PDF, JPG, PNG ou WEBP, com até 10 MB. O arquivo será armazenado em área privada.
             </p>
           </div>
 

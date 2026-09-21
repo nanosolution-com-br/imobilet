@@ -139,7 +139,39 @@ join pg_language l on l.oid = p.prolang
 where n.nspname = 'public'
   and p.proname in (
     'set_updated_at',
+    'create_sales_contract_with_installments',
     'generate_installments_for_contract',
+    'register_manual_installment_payment',
     'refresh_overdue_installments'
   )
 order by p.proname;
+
+-- 8. Bucket privado de comprovantes, caso ja exista. Nao retorna arquivos.
+select
+  id,
+  public,
+  file_size_limit,
+  allowed_mime_types
+from storage.buckets
+where id = 'payment-receipts';
+
+-- 9. Policies existentes no Storage para evitar conflito de nomes ou acesso amplo.
+select
+  policyname,
+  roles,
+  cmd,
+  qual,
+  with_check
+from pg_policies
+where schemaname = 'storage'
+  and tablename = 'objects'
+  and (
+    policyname in (
+      'Owners can upload payment receipts',
+      'Owners can read payment receipts',
+      'Owners can delete payment receipts'
+    )
+    or coalesce(qual, '') ilike '%payment-receipts%'
+    or coalesce(with_check, '') ilike '%payment-receipts%'
+  )
+order by policyname;

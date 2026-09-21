@@ -9,6 +9,7 @@ import {
   Calendar,
   CheckCircle2,
   FileText,
+  Download,
   Loader2,
   Receipt,
   User,
@@ -18,6 +19,10 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/customSupabaseClient';
+import {
+  getReceiptDownloadName,
+  PAYMENT_RECEIPTS_BUCKET,
+} from '@/lib/paymentReceipts';
 import { useToast } from '@/components/ui/use-toast';
 import ManualPaymentDialog from '@/components/receivables/ManualPaymentDialog';
 import {
@@ -41,6 +46,7 @@ const SalesContractDetails = () => {
   const [schemaMissing, setSchemaMissing] = useState(false);
   const [selectedInstallment, setSelectedInstallment] = useState(null);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [downloadingReceipt, setDownloadingReceipt] = useState(null);
 
   const fetchContract = useCallback(async () => {
     try {
@@ -120,6 +126,34 @@ const SalesContractDetails = () => {
   const openPaymentDialog = (installment) => {
     setSelectedInstallment(installment);
     setPaymentDialogOpen(true);
+  };
+
+  const downloadReceipt = async (receiptPath) => {
+    try {
+      setDownloadingReceipt(receiptPath);
+      const { data, error } = await supabase.storage
+        .from(PAYMENT_RECEIPTS_BUCKET)
+        .download(receiptPath);
+
+      if (error) throw error;
+
+      const objectUrl = URL.createObjectURL(data);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = getReceiptDownloadName(receiptPath);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao baixar comprovante',
+        description: error.message || 'Não foi possível acessar o arquivo privado.',
+      });
+    } finally {
+      setDownloadingReceipt(null);
+    }
   };
 
   if (loading) {
@@ -312,9 +346,21 @@ const SalesContractDetails = () => {
                           {payment.notes ? <p className="text-sm text-slate-600 mt-1">{payment.notes}</p> : null}
                         </div>
                         {payment.receipt_path ? (
-                          <span className="text-sm font-semibold text-emerald-700">
-                            Comprovante registrado
-                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => downloadReceipt(payment.receipt_path)}
+                            disabled={downloadingReceipt === payment.receipt_path}
+                            className="border-slate-300 text-slate-700"
+                          >
+                            {downloadingReceipt === payment.receipt_path ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4 mr-2" />
+                            )}
+                            Baixar comprovante
+                          </Button>
                         ) : null}
                       </div>
                     ))}

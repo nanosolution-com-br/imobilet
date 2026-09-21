@@ -37,14 +37,17 @@ Antes de aplicar qualquer SQL em producao:
 5. Confirmar que as policies usam `TO authenticated` com predicados de ownership, e nao `service_role` no front-end.
 6. Confirmar que `payments` so permite inserir pagamentos em parcelas pertencentes a contratos do usuario autenticado.
 7. Confirmar que funcoes publicas tem `EXECUTE` revogado de `public`/`anon` e liberado apenas quando necessario.
-8. Confirmar que as novas tabelas e as RPCs necessarias estao expostas para a Data API apenas com `GRANT` adequado para `authenticated`.
-9. Testar com usuario comum autenticado:
+8. Criar no Storage o bucket privado `payment-receipts` com limite de 10 MB e MIME types PDF/JPEG/PNG/WEBP.
+9. Aplicar `docs/supabase-payment-receipts-storage.sql` e confirmar que upload, leitura e exclusao exigem ownership.
+10. Confirmar que as novas tabelas e as RPCs necessarias estao expostas para a Data API apenas com `GRANT` adequado para `authenticated`.
+11. Testar com usuario comum autenticado:
    - criar contrato e parcelas pela RPC transacional `create_sales_contract_with_installments`;
    - listar contas a receber;
    - registrar pagamento parcial;
    - registrar quitacao;
+   - anexar e baixar um comprovante privado;
    - validar historico de pagamentos.
-10. Rodar `docs/supabase-receivables-postflight.sql` para conferir tabelas, colunas, RLS, grants, policies, funcoes e FKs criadas.
+12. Rodar `docs/supabase-receivables-postflight.sql` para conferir tabelas, colunas, RLS, grants, policies, funcoes, bucket e FKs criadas.
 
 ## 3. Banco do Brasil
 
