@@ -28,6 +28,10 @@ supabase/.env.*
 !docs/supabase-receivables-preflight.sql
 !docs/supabase-receivables-postflight.sql
 !docs/supabase-payment-receipts-storage.sql
+!supabase/migrations/
+!supabase/migrations/*.sql
+!supabase/tests/
+!supabase/tests/*.sql
 *.dump
 *.backup
 *.bak

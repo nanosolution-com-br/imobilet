@@ -10,7 +10,13 @@
     "lint": "eslint . --quiet",
     "validate:receivables": "node tools/validate-receivables.js",
     "validate:supabase-config": "node tools/validate-supabase-configuration.js",
-    "validate:bb-boleto": "node tools/validate-banco-brasil-boleto.js"
+    "validate:bb-boleto": "node tools/validate-banco-brasil-boleto.js",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:reset": "supabase db reset --local --no-seed",
+    "test:database": "supabase test db --local supabase/tests/receivables_test.sql",
+    "lint:database": "supabase db lint --local --schema public --level warning --fail-on warning",
+    "audit:database": "supabase db advisors --local --type all --level warn --fail-on warn"
   },
   "dependencies": {
     "@babel/generator": "^7.26.3",
@@ -82,6 +88,7 @@
     "eslint-plugin-react-hooks": "^5.1.0",
     "globals": "^15.14.0",
     "postcss": "^8.4.49",
+    "supabase": "2.117.0",
     "tailwindcss": "^3.4.17",
     "vite": "^4.4.5"
   }
