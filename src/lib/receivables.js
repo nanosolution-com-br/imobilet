@@ -34,6 +34,17 @@ export const MAX_INSTALLMENTS_COUNT = 600;
 
 export const formatCurrency = (value) => currencyFormatter.format(Number(value) || 0);
 
+export const partitionBuyersByProperty = (buyers = []) => {
+  return (Array.isArray(buyers) ? buyers : []).reduce((groups, buyer) => {
+    if (buyer?.property_id) {
+      groups.linked.push(buyer);
+    } else {
+      groups.unlinked.push(buyer);
+    }
+    return groups;
+  }, { linked: [], unlinked: [] });
+};
+
 export const formatDate = (value) => {
   if (!value) return '-';
   const date = value instanceof Date ? value : new Date(`${String(value).slice(0, 10)}T12:00:00`);

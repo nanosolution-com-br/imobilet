@@ -4,6 +4,7 @@ import {
   calculateInstallmentStatus,
   generateInstallmentsSchedule,
   isMissingReceivablesSchema,
+  partitionBuyersByProperty,
 } from '../src/lib/receivables.js';
 import {
   buildPaymentReceiptPath,
@@ -69,6 +70,18 @@ assert.equal(isMissingReceivablesSchema({
   code: 'PGRST202',
   message: 'Could not find the function public.create_sales_contract_with_installments',
 }), true);
+
+const buyersByProperty = partitionBuyersByProperty([
+  { id: 'buyer-linked', property_id: 'property-1' },
+  { id: 'buyer-unlinked', property_id: null },
+  { id: 'buyer-empty-link', property_id: '' },
+]);
+assert.deepEqual(buyersByProperty.linked.map((buyer) => buyer.id), ['buyer-linked']);
+assert.deepEqual(
+  buyersByProperty.unlinked.map((buyer) => buyer.id),
+  ['buyer-unlinked', 'buyer-empty-link'],
+);
+assert.deepEqual(partitionBuyersByProperty(null), { linked: [], unlinked: [] });
 
 const receiptFile = { type: 'application/pdf', size: 1024 };
 const receiptPath = buildPaymentReceiptPath({

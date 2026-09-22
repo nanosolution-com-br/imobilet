@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, FileSignature, Loader2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, FileSignature, Loader2, UsersRound } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import {
   formatCurrency,
   generateInstallmentsSchedule,
   isMissingReceivablesSchema,
+  partitionBuyersByProperty,
   safeBuyerName,
   safePropertyTitle,
 } from '@/lib/receivables';
@@ -51,7 +52,7 @@ const AddSalesContract = () => {
       if (buyersResult.error) throw buyersResult.error;
       if (propertiesResult.error) throw propertiesResult.error;
 
-      setBuyers((buyersResult.data || []).filter((buyer) => buyer.property_id));
+      setBuyers(buyersResult.data || []);
       setProperties(propertiesResult.data || []);
     } catch (error) {
       toast({
@@ -75,7 +76,12 @@ const AddSalesContract = () => {
     }, {});
   }, [properties]);
 
-  const selectedBuyer = buyers.find((buyer) => buyer.id === formData.buyer_id);
+  const buyersByProperty = useMemo(
+    () => partitionBuyersByProperty(buyers),
+    [buyers],
+  );
+  const linkedBuyers = buyersByProperty.linked;
+  const unlinkedBuyersCount = buyersByProperty.unlinked.length;
   const selectedProperty = propertyById[formData.property_id];
   const previewInstallments = generateInstallmentsSchedule({
     installmentsCount: formData.installments_count,
@@ -84,7 +90,7 @@ const AddSalesContract = () => {
   });
 
   const handleBuyerChange = (buyerId) => {
-    const buyer = buyers.find((item) => item.id === buyerId);
+    const buyer = linkedBuyers.find((item) => item.id === buyerId);
     const property = buyer?.property_id ? propertyById[buyer.property_id] : null;
 
     setFormData((prev) => ({
@@ -194,6 +200,28 @@ const AddSalesContract = () => {
               </div>
             )}
 
+            {!loadingOptions && unlinkedBuyersCount > 0 && (
+              <div className="mb-6 flex flex-col gap-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex gap-3">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden="true" />
+                  <div>
+                    <p className="font-semibold">
+                      {unlinkedBuyersCount} {unlinkedBuyersCount === 1 ? 'comprador sem imóvel vinculado' : 'compradores sem imóvel vinculado'}
+                    </p>
+                    <p className="mt-1 text-sm text-amber-800">
+                      Esses cadastros não podem gerar contratos automaticamente até que o imóvel seja definido.
+                    </p>
+                  </div>
+                </div>
+                <Link to="/compradores" className="shrink-0">
+                  <Button type="button" variant="outline" size="sm" className="w-full border-amber-300 bg-white text-amber-900 hover:bg-amber-100 sm:w-auto">
+                    <UsersRound className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Revisar compradores
+                  </Button>
+                </Link>
+              </div>
+            )}
+
             {loadingOptions ? (
               <div className="py-16 flex items-center justify-center text-slate-500">
                 <Loader2 className="h-6 w-6 animate-spin text-emerald-600 mr-2" />
@@ -211,7 +239,7 @@ const AddSalesContract = () => {
                       className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-slate-900"
                     >
                       <option value="">Selecione</option>
-                      {buyers.map((buyer) => (
+                      {linkedBuyers.map((buyer) => (
                         <option key={buyer.id} value={buyer.id}>
                           {safeBuyerName(buyer)}
                         </option>
